@@ -1,0 +1,1110 @@
+substitutions:
+  device_name: ctc-gsi-612
+  friendly_name: "CTC GSi 612"
+  modbus_address: "0x1"
+
+esphome:
+  name: ${device_name}
+  comment: "CTC GSi 612 Heat Pump Controller"
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+# Enable logging
+logger:
+  level: DEBUG
+  logs:
+    modbus_controller: WARN
+    modbus: WARN
+
+# Enable Home Assistant API
+api:
+  encryption:
+    key: !secret api_encryption_key
+
+ota:
+  password: !secret ota_password
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  power_save_mode: none  # Disable power saving for reliability
+
+  # Enable fallback hotspot
+  ap:
+    ssid: "${friendly_name} Hotspot"
+    password: !secret ap_password
+
+captive_portal:
+
+# Web server for diagnostics
+web_server:
+  port: 80
+
+# ==================== MODBUS CONFIGURATION ====================
+# Based on proven kasper-73 configuration and CTC modbus parameter list.pdf
+# NO PARITY - matching original working configuration
+
+uart:
+  id: mod_bus
+  tx_pin: GPIO17
+  rx_pin: GPIO16
+  baud_rate: 9600
+  stop_bits: 1
+  # NO PARITY SPECIFIED - matching kasper-73 working config
+
+modbus:
+  id: modbus1
+  flow_control_pin: GPIO5
+  send_wait_time: 200ms
+
+modbus_controller:
+  - id: ctc_gsi
+    address: ${modbus_address}
+    modbus_id: modbus1
+    setup_priority: -10
+    update_interval: 10s
+
+# ==================== TEMPERATURE SENSORS ====================
+# Using VERIFIED registers from kasper-73 and CTC modbus parameter list.pdf
+# All temperatures use S_WORD (signed 16-bit) with factor 0.1°C
+
+sensor:
+  # WiFi Signal Strength
+  - platform: wifi_signal
+    name: "${friendly_name} WiFi Signal"
+    update_interval: 60s
+
+  # Outdoor temperature - Register 606 (0x025E) - VERIFIED
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Outdoor Temperature"
+    id: outdoor_temp
+    address: 606
+    register_type: read
+    value_type: S_WORD
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # DHW (Hot Water) Temperature - Register 600 (0x0258) - VERIFIED
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} DHW Temperature"
+    id: dhw_temp
+    address: 600
+    register_type: read
+    value_type: S_WORD
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # Upper Tank Temperature - Register 601 (0x0259) - VERIFIED kasper-73
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Upper Tank Temperature"
+    id: upper_tank_temp
+    address: 601
+    register_type: read
+    value_type: S_WORD
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # Middle Tank Temperature - Register 602 (0x025A) - VERIFIED kasper-73
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Middle Tank Temperature"
+    id: middle_tank_temp
+    address: 602
+    register_type: read
+    value_type: S_WORD
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # Lower Tank Temperature - Register 603 (0x025B) - VERIFIED kasper-73
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Lower Tank Temperature"
+    id: lower_tank_temp
+    address: 603
+    register_type: read
+    value_type: S_WORD
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # Condenser Temperature Out - Register 604 (0x025C) - VERIFIED kasper-73
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Condenser Out"
+    id: condenser_out
+    address: 604
+    register_type: read
+    value_type: S_WORD
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # Condenser Temperature In - Register 605 (0x025D) - VERIFIED kasper-73
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Condenser In"
+    id: condenser_in
+    address: 605
+    register_type: read
+    value_type: S_WORD
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # Primary Flow Temperature - Register 607 (0x025F) - VERIFIED kasper-73
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Primary Flow Temperature"
+    id: primary_flow_temp
+    address: 607
+    register_type: read
+    value_type: S_WORD
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # Return Temperature - Register 609 (estimated from PDF pattern)
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Return Temperature"
+    id: return_temp
+    address: 609
+    register_type: read
+    value_type: S_WORD
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # Room Sensor 1 Temperature - Register 609 from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Room 1 Temperature"
+    id: room1_temp
+    address: 609
+    register_type: read
+    value_type: S_WORD
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # Room Sensor 2 Temperature - Register 610 from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Room 2 Temperature"
+    id: room2_temp
+    address: 610
+    register_type: read
+    value_type: S_WORD
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # Heat Pump Brine Out Temperature - Register 630 from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Brine Out Temperature"
+    id: brine_out_temp
+    address: 630
+    register_type: read
+    value_type: S_WORD
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # Heat Pump Brine In Temperature - Register 631 from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Brine In Temperature"
+    id: brine_in_temp
+    address: 631
+    register_type: read
+    value_type: S_WORD
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # Heat Pump Flow In Temperature - Register 632 from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} HP Flow In Temperature"
+    id: hp_flow_in_temp
+    address: 632
+    register_type: read
+    value_type: S_WORD
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # Heat Pump Flow Out Temperature - Register 634 from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} HP Flow Out Temperature"
+    id: hp_flow_out_temp
+    address: 634
+    register_type: read
+    value_type: S_WORD
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # Discharge Temperature - Register 635 from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Discharge Temperature"
+    id: discharge_temp
+    address: 635
+    register_type: read
+    value_type: S_WORD
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # Suction Gas Temperature - Register 636 from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Suction Gas Temperature"
+    id: suction_gas_temp
+    address: 636
+    register_type: read
+    value_type: S_WORD
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # Calculated Condensing Temperature - Register 639 from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Condensing Temperature"
+    id: condensing_temp
+    address: 639
+    register_type: read
+    value_type: S_WORD
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # Calculated Evaporating Temperature - Register 640 from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Evaporating Temperature"
+    id: evaporating_temp
+    address: 640
+    register_type: read
+    value_type: S_WORD
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # ==================== PRESSURE SENSORS ====================
+  # High Pressure - Register 637 (0.1 Bar) from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} High Pressure"
+    id: high_pressure
+    address: 637
+    register_type: read
+    value_type: S_WORD
+    unit_of_measurement: "bar"
+    device_class: pressure
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # Low Pressure - Register 638 (0.1 Bar) from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Low Pressure"
+    id: low_pressure
+    address: 638
+    register_type: read
+    value_type: S_WORD
+    unit_of_measurement: "bar"
+    device_class: pressure
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # ==================== PUMP & VALVE STATUS ====================
+  # Charge Pump Value - Register 648 (0.1%) from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Charge Pump"
+    id: charge_pump
+    address: 648
+    register_type: read
+    value_type: S_WORD
+    unit_of_measurement: "%"
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # Expansion Valve Position - Register 642 (0.1%) from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Expansion Valve Position"
+    id: expansion_valve
+    address: 642
+    register_type: read
+    value_type: S_WORD
+    unit_of_measurement: "%"
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # Superheat - Register 641 (0.1°C) from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Superheat"
+    id: superheat
+    address: 641
+    register_type: read
+    value_type: S_WORD
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # ==================== POWER & CURRENT ====================
+  # Heat Quantity Counter Capacity - Register 644 (0.1 kW) from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Heat Capacity"
+    id: heat_capacity
+    address: 644
+    register_type: read
+    value_type: S_WORD
+    unit_of_measurement: "kW"
+    device_class: power
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # Current L1 - Register 612 (0x0264) - VERIFIED kasper-73
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Current L1"
+    id: current_l1
+    address: 612
+    register_type: read
+    value_type: U_WORD
+    unit_of_measurement: "A"
+    device_class: current
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # Current L2 - Register 613 (0x0265) - VERIFIED kasper-73
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Current L2"
+    id: current_l2
+    address: 613
+    register_type: read
+    value_type: U_WORD
+    unit_of_measurement: "A"
+    device_class: current
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # Current L3 - Register 614 (0x0266) - VERIFIED kasper-73
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Current L3"
+    id: current_l3
+    address: 614
+    register_type: read
+    value_type: U_WORD
+    unit_of_measurement: "A"
+    device_class: current
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # ==================== RUNTIME STATISTICS ====================
+  # Compressor Start Delay Timer - Register 647 (minutes) from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Compressor Start Delay"
+    id: comp_start_delay
+    address: 647
+    register_type: read
+    value_type: S_WORD
+    unit_of_measurement: "min"
+    state_class: measurement
+    icon: "mdi:timer-sand"
+
+  # Total Operating Hours (High Part) - Register 291 (×1000) from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Total Hours High"
+    id: total_hours_high
+    address: 291
+    register_type: read
+    value_type: U_WORD
+    internal: true
+
+  # Total Operating Hours (Low Part) - Register 290 from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Total Hours Low"
+    id: total_hours_low
+    address: 290
+    register_type: read
+    value_type: U_WORD
+    internal: true
+
+  # Combined Total Operating Hours
+  - platform: template
+    name: "${friendly_name} Total Operating Hours"
+    id: total_hours
+    unit_of_measurement: "h"
+    state_class: total_increasing
+    device_class: duration
+    accuracy_decimals: 0
+    icon: "mdi:clock-outline"
+    lambda: |-
+      return (id(total_hours_high).state * 1000.0) + id(total_hours_low).state;
+    update_interval: 60s
+
+  # Compressor Operating Hours (High Part) - Register 663 (×1000) from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Compressor Hours High"
+    id: comp_hours_high
+    address: 663
+    register_type: read
+    value_type: U_WORD
+    internal: true
+
+  # Compressor Operating Hours (Low Part) - Register 664 from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Compressor Hours Low"
+    id: comp_hours_low
+    address: 664
+    register_type: read
+    value_type: U_WORD
+    internal: true
+
+  # Combined Compressor Operating Hours
+  - platform: template
+    name: "${friendly_name} Compressor Operating Hours"
+    id: comp_hours
+    unit_of_measurement: "h"
+    state_class: total_increasing
+    device_class: duration
+    accuracy_decimals: 0
+    icon: "mdi:engine"
+    lambda: |-
+      return (id(comp_hours_high).state * 1000.0) + id(comp_hours_low).state;
+    update_interval: 60s
+
+  # Compressor Operating Time per 24h - Register 665 (minutes) from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Compressor Runtime 24h"
+    id: comp_runtime_24h
+    address: 665
+    register_type: read
+    value_type: U_WORD
+    unit_of_measurement: "min"
+    state_class: measurement
+    icon: "mdi:timer"
+
+  # Compressor Starts per 24h - Register 666 from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Compressor Starts 24h"
+    id: comp_starts_24h
+    address: 666
+    register_type: read
+    value_type: U_WORD
+    unit_of_measurement: "starts"
+    state_class: measurement
+    icon: "mdi:counter"
+
+  # ==================== SETPOINTS (READ VALUES) ====================
+  # Primary Flow Setpoint - Register 559 from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Primary Flow Setpoint"
+    id: primary_flow_setpoint
+    address: 559
+    register_type: read
+    value_type: S_WORD
+    unit_of_measurement: "°C"
+    device_class: temperature
+    state_class: measurement
+    accuracy_decimals: 1
+    filters:
+      - multiply: 0.1
+
+  # Software Version - Register 691-692 from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Software Version Date"
+    id: sw_version_date
+    address: 691
+    register_type: read
+    value_type: U_WORD
+    state_class: measurement
+
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Software Version Year"
+    id: sw_version_year
+    address: 692
+    register_type: read
+    value_type: U_WORD
+    state_class: measurement
+
+# ==================== BINARY SENSORS (STATUS BITS) ====================
+binary_sensor:
+  # Alarm Active - Register 550 bit 0 from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Alarm Active"
+    id: alarm_active
+    register_type: read
+    address: 550
+    bitmask: 0x1
+    device_class: problem
+
+  # High Current - Register 550 bit 1 from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} High Current"
+    id: high_current
+    register_type: read
+    address: 550
+    bitmask: 0x2
+    device_class: problem
+
+  # Shut Off - Register 550 bit 3 from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Shut Off"
+    id: shut_off
+    register_type: read
+    address: 550
+    bitmask: 0x8
+
+  # Extra DHW - Register 550 bit 4 from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Extra DHW Active"
+    id: extra_dhw_active
+    register_type: read
+    address: 550
+    bitmask: 0x10
+
+  # Heating On - Register 550 bit 5 from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Heating On"
+    id: heating_on
+    register_type: read
+    address: 550
+    bitmask: 0x20
+    device_class: heat
+
+  # Lower Tank HP - Register 550 bit 8 from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Lower Tank HP"
+    id: lower_tank_hp
+    register_type: read
+    address: 550
+    bitmask: 0x100
+    device_class: running
+
+  # Upper Tank HP - Register 550 bit 9 from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Upper Tank HP"
+    id: upper_tank_hp
+    register_type: read
+    address: 550
+    bitmask: 0x200
+    device_class: running
+
+  # Tariff Immersion Blocked - Register 550 bit 10 from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Tariff Immersion Blocked"
+    id: tariff_immersion_blocked
+    register_type: read
+    address: 550
+    bitmask: 0x400
+
+  # Tariff HP Blocked - Register 550 bit 11 from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Tariff HP Blocked"
+    id: tariff_hp_blocked
+    register_type: read
+    address: 550
+    bitmask: 0x800
+
+  # Compressor Running - Register 650 bit 0 from PDF - VERIFIED kasper-73
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Compressor Running"
+    id: compressor_running
+    register_type: read
+    address: 650
+    bitmask: 0x1
+    device_class: running
+
+  # Brine Pump Running - Register 650 bit 3 - VERIFIED kasper-73 (0x028A bitmask 0x30)
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Brine Pump Running"
+    id: brine_pump_running
+    register_type: read
+    address: 650
+    bitmask: 0x8
+    device_class: running
+
+  # ==================== ALARM SENSORS ====================
+  # Pump Overload - Register 656 bit 3 from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Alarm Pump Overload"
+    register_type: read
+    address: 656
+    bitmask: 0x8
+    device_class: problem
+
+  # System Pump Overload - Register 656 bit 4 from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Alarm System Pump Overload"
+    register_type: read
+    address: 656
+    bitmask: 0x10
+    device_class: problem
+
+  # Compressor Overload - Register 656 bit 5 from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Alarm Compressor Overload"
+    register_type: read
+    address: 656
+    bitmask: 0x20
+    device_class: problem
+
+  # High Pressure Alarm - Register 656 bit 7 from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Alarm High Pressure"
+    register_type: read
+    address: 656
+    bitmask: 0x80
+    device_class: problem
+
+  # Low Brine Flow - Register 656 bit 12 from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Alarm Low Brine Flow"
+    register_type: read
+    address: 656
+    bitmask: 0x1000
+    device_class: problem
+
+  # Low Brine Temperature - Register 656 bit 13 from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Alarm Low Brine Temp"
+    register_type: read
+    address: 656
+    bitmask: 0x2000
+    device_class: problem
+
+  # ==================== OUTPUT RELAYS ====================
+  # Radiator Pump 1 - Register 620 bit 0 from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Radiator Pump 1"
+    register_type: read
+    address: 620
+    bitmask: 0x1
+    device_class: running
+
+  # DHW Valve - Register 620 bit 6 from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} DHW Valve"
+    register_type: read
+    address: 620
+    bitmask: 0x40
+    device_class: opening
+
+  # Immersion Heater Status (multiple bits from register 620)
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Immersion Heater Low L1"
+    register_type: read
+    address: 620
+    bitmask: 0x80
+    device_class: heat
+
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Immersion Heater High L1"
+    register_type: read
+    address: 620
+    bitmask: 0x100
+    device_class: heat
+
+  # Hardware Input Sensors - Register 617 from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Security Thermostat"
+    register_type: read
+    address: 617
+    bitmask: 0x2
+    device_class: problem
+
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Tariff Low Rate"
+    id: tariff_low_rate_input
+    register_type: read
+    address: 617
+    bitmask: 0x8
+    icon: "mdi:cash-clock"
+
+# ==================== WRITABLE SETTINGS ====================
+number:
+  # Room 1 Setpoint - Register 203 (0.1°C, 5-30°C) from PDF - VERIFIED
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Room 1 Setpoint"
+    id: room1_setpoint
+    address: 203
+    value_type: S_WORD
+    min_value: 5
+    max_value: 30
+    step: 0.5
+    unit_of_measurement: "°C"
+    device_class: temperature
+    mode: box
+    multiply: 10
+    icon: "mdi:home-thermometer"
+
+  # Heating Curve Slope - Register 212 (0.1, 25-85) from PDF - VERIFIED kasper-73
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Heating Curve Slope"
+    id: heating_curve_slope
+    address: 212
+    value_type: S_WORD
+    min_value: 25
+    max_value: 85
+    step: 1
+    mode: box
+    multiply: 10
+    icon: "mdi:chart-line"
+
+  # Heating Curve Offset - Register 213 (0.1°C, -20 to +20) from PDF - VERIFIED kasper-73
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Heating Curve Offset"
+    id: heating_curve_offset
+    address: 213
+    value_type: S_WORD
+    min_value: -20
+    max_value: 20
+    step: 1
+    unit_of_measurement: "°C"
+    device_class: temperature
+    mode: box
+    multiply: 10
+    icon: "mdi:chart-line-variant"
+
+  # Extra DHW Time - Register 206 (0.5h, 0-20) from PDF - VERIFIED kasper-73 (0x0000F03F)
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Extra DHW Time"
+    id: extra_dhw_time
+    address: 206
+    value_type: S_WORD
+    min_value: 0
+    max_value: 20
+    step: 0.5
+    unit_of_measurement: "h"
+    mode: box
+    multiply: 2
+    icon: "mdi:water-boiler"
+
+  # Vacation Days - Register 205 (0-300 days) from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Vacation Days"
+    id: vacation_days
+    address: 205
+    value_type: S_WORD
+    min_value: 0
+    max_value: 300
+    step: 1
+    unit_of_measurement: "d"
+    mode: box
+    icon: "mdi:palm-tree"
+
+  # Max Immersion Heater Power - Register 238 (0.1kW, 0-9.0kW) from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Max Immersion Heater Power"
+    id: max_immersion_power
+    address: 238
+    value_type: S_WORD
+    min_value: 0
+    max_value: 90
+    step: 1
+    unit_of_measurement: "kW"
+    device_class: power
+    mode: box
+    multiply: 10
+    icon: "mdi:lightning-bolt"
+
+  # Main Fuse Size - Register 240 (0.1A, 10-35A) from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Main Fuse Size"
+    id: main_fuse_size
+    address: 240
+    value_type: S_WORD
+    min_value: 100
+    max_value: 350
+    step: 10
+    unit_of_measurement: "A"
+    device_class: current
+    mode: box
+    multiply: 10
+    icon: "mdi:fuse"
+
+  # Max Primary Flow - Register 208 (0.1°C, 30-80°C) from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Max Primary Flow"
+    id: max_primary_flow
+    address: 208
+    value_type: S_WORD
+    min_value: 30
+    max_value: 80
+    step: 1
+    unit_of_measurement: "°C"
+    device_class: temperature
+    mode: box
+    multiply: 10
+    icon: "mdi:thermometer-chevron-up"
+
+  # Min Primary Flow - Register 209 (0.1°C, 14-65°C) from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Min Primary Flow"
+    id: min_primary_flow
+    address: 209
+    value_type: S_WORD
+    min_value: 14
+    max_value: 65
+    step: 1
+    unit_of_measurement: "°C"
+    device_class: temperature
+    mode: box
+    multiply: 10
+    icon: "mdi:thermometer-chevron-down"
+
+# ==================== SELECT CONTROLS ====================
+select:
+  # DHW Mode - Register 207 (0=Economy, 1=Normal, 2=Comfort) from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} DHW Mode"
+    id: dhw_mode
+    address: 207
+    value_type: S_WORD
+    optionsmap:
+      "Economy": 0
+      "Normal": 1
+      "Comfort": 2
+    icon: "mdi:water-thermometer"
+
+# ==================== SWITCHES ====================
+switch:
+  # Compressor Enable - Register 232 (0=Blocked, 1=Enabled) from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Compressor Enable"
+    id: compressor_enable
+    register_type: holding
+    address: 232
+    bitmask: 1
+    icon: "mdi:engine"
+
+  # Tariff Control - Register 242 from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Tariff Control"
+    id: tariff_control
+    register_type: holding
+    address: 242
+    bitmask: 1
+    icon: "mdi:cash-clock"
+
+  # Heat Pump Tariff Control - Register 234 from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} HP Tariff Control"
+    id: hp_tariff_control
+    register_type: holding
+    address: 234
+    bitmask: 1
+    icon: "mdi:cash-multiple"
+
+# ==================== TEXT SENSORS ====================
+text_sensor:
+  # Work Mode - Register 571 from PDF
+  - platform: modbus_controller
+    modbus_controller_id: ctc_gsi
+    name: "${friendly_name} Work Mode"
+    id: work_mode
+    register_type: read
+    address: 571
+    response_size: 2
+    raw_encode: HEXBYTES
+    lambda: |-
+      uint16_t value = modbus_controller::word_from_hex_str(x, 0);
+      switch(value) {
+        case 0: return std::string("HP Upper Tank");
+        case 1: return std::string("HP Lower Tank");
+        case 2: return std::string("Add Heat");
+        case 3: return std::string("HP + Add Heat");
+        default: return std::string("Unknown");
+      }
+    icon: "mdi:state-machine"
+
+  # System Status
+  - platform: template
+    name: "${friendly_name} System Status"
+    id: system_status
+    icon: "mdi:information-outline"
+    lambda: |-
+      if (id(alarm_active).state) {
+        return {"Alarm Active"};
+      } else if (id(compressor_running).state) {
+        return {"Running"};
+      } else if (id(shut_off).state) {
+        return {"Shut Off"};
+      } else {
+        return {"Idle"};
+      }
+    update_interval: 5s
+
+  # Calculated COP
+  - platform: template
+    name: "${friendly_name} Compressor COP"
+    id: compressor_cop
+    icon: "mdi:chart-arc"
+    lambda: |-
+      float t_out = id(hp_flow_out_temp).state;
+      float t_in = id(brine_in_temp).state;
+      if (t_out > 0 && t_in > 0 && (t_out - t_in) > 0) {
+        float cop = (t_out + 273.15) / (t_out - t_in);
+        char buf[10];
+        sprintf(buf, "%.2f", cop * 0.5);
+        return std::string(buf);
+      }
+      return std::string("N/A");
+    update_interval: 60s
+
+  - platform: wifi_info
+    ip_address:
+      name: "${friendly_name} IP Address"
+    ssid:
+      name: "${friendly_name} WiFi SSID"
+
+# ==================== BUTTONS ====================
+button:
+  - platform: restart
+    name: "${friendly_name} Restart"
+    icon: "mdi:restart"
